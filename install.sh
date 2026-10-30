@@ -15,7 +15,7 @@
 # =============================================================================
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 
 LOKI_URL="${LOKI_URL:-}"
 MEMORY_MAX="${MEMORY_MAX:-200M}"
@@ -347,7 +347,7 @@ loki.process "proxmox" {
     expression = `Use of uninitialized value in multiplication|Module ip_tables not found|iptables-restore|unable to initialize table 'filter'|Error occurred at line: 1|iptables_restore_cmdlist`
   }
 
-  // guest id: unit names first, then task UPIDs, "VM 100"/"CT 101", tap/veth ifaces, cgroups
+  // guest id: unit names first, then task UPIDs, "VM 100"/"CT 101", tap/veth ifaces, cgroups, AppArmor
   stage.regex {
     source     = "unit"
     expression = `^(?P<gid_vm>[0-9]+)\.scope$`
@@ -372,11 +372,15 @@ loki.process "proxmox" {
   stage.regex {
     expression = `(?P<slice>qemu|lxc)(?:\.slice)?/(?P<gid_cg>[0-9]{3,})(?:\.scope)?\b`
   }
+  // kernel AppArmor events name the container as  namespace="root//lxc-108_<-var-lib-lxc>"
+  stage.regex {
+    expression = `\blxc-(?P<gid_aa>[0-9]+)_`
+  }
 
   // Alloy's own lines mention task file names: never treat them as guest lines
   stage.template {
     source   = "guest_id"
-    template = `{{ if hasPrefix "alloy" (or .service_name "") }}{{ else }}{{ or .gid_vm .gid_ct .gid_vm_console .task_guest .gid_upid .gid_word .gid_if .gid_cg "" }}{{ end }}`
+    template = `{{ if hasPrefix "alloy" (or .service_name "") }}{{ else }}{{ or .gid_vm .gid_ct .gid_vm_console .task_guest .gid_upid .gid_word .gid_if .gid_cg .gid_aa "" }}{{ end }}`
   }
 
   // type: generated map first, then evidence (vzdump backs up both kinds: not a hint)
@@ -387,7 +391,7 @@ loki.process "proxmox" {
 {{- $t := or .task .msg_task "" -}}
 {{- if get $known .guest_id -}}{{ get $known .guest_id }}
 {{- else if or .gid_vm .gid_vm_console (hasPrefix "qm" $t) (eq (or .msg_kind "") "VM") (eq (or .ifkind "") "tap") (eq (or .slice "") "qemu") -}}qemu
-{{- else if or .gid_ct (and (hasPrefix "vz" $t) (ne $t "vzdump")) (eq (or .msg_kind "") "CT") (eq (or .ifkind "") "veth") (eq (or .slice "") "lxc") -}}lxc
+{{- else if or .gid_ct .gid_aa (and (hasPrefix "vz" $t) (ne $t "vzdump")) (eq (or .msg_kind "") "CT") (eq (or .ifkind "") "veth") (eq (or .slice "") "lxc") -}}lxc
 {{- else -}}unknown{{- end -}}
 {{- end -}}`, string.trim_space(local.file.guest_types.content))
   }

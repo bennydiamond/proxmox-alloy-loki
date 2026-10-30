@@ -30,7 +30,7 @@ The severity (`critical`, `error`, `warn`, `info`, `debug`) is stored as `level`
 
 | Source | Examples | Labelled as guest when… |
 |---|---|---|
-| systemd journal | pvedaemon, pveproxy, pve-cluster, pve-ha-*, kernel, smartd | the line names a guest (`VM 100`, `CT 101`, a task UPID, `tap100i0`, `veth101i0`, a guest cgroup) |
+| systemd journal | pvedaemon, pveproxy, pve-cluster, pve-ha-*, kernel, smartd | the line names a guest (`VM 100`, `CT 101`, a task UPID, `tap100i0`, `veth101i0`, a guest cgroup, an AppArmor `lxc-101_` namespace) |
 | VM process scopes | `100.scope` (the VM's `kvm` process) | always |
 | Container services | `pve-container@101.service` | always |
 | **Task logs** `/var/log/pve/tasks` | start, stop, backup (vzdump), snapshot, migrate | the task targets a guest. `TASK ERROR` is an error, `TASK WARNINGS` a warning |
@@ -172,7 +172,7 @@ sum by (host) (count_over_time({job="proxmox"} | level=~"critical|error" [5m]))
 The guest ID comes from, in order of reliability:
 1. the systemd unit (`100.scope`, `pve-container@101.service`, `vm-console@100.service`)
 2. the task file name (`UPID:<node>:…:<type>:<id>:<user>:`)
-3. the message text: task UPIDs, `VM 100`, `CT 101`, `tap100i0`, `veth101i0`, `fwbr100i0`, `qemu.slice/100.scope`, `lxc/101`
+3. the message text: task UPIDs, `VM 100`, `CT 101`, `tap100i0`, `veth101i0`, `fwbr100i0`, `qemu.slice/100.scope`, `lxc/101`, AppArmor `namespace="root//lxc-101_<-var-lib-lxc>"`
 
 `guest_name` and `guest_type` then come from the generated map. The helper writes those files only when the guest list changes, and Alloy's `local.file` component reloads them automatically.
 
